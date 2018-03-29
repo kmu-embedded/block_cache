@@ -1,0 +1,9 @@
+config BLOCK_CACHE
+	tristate  "Using ram as cache for block layer"
+	---help---
+	prototype
+config BLOCK_CACHE_DEBUG
+	bool "Block cache debugging"
+	depends on BLOCK_CACHE
+	---help---
+	prototype
