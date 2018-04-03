@@ -52,6 +52,9 @@ DEFINE_IDA(blk_queue_ida);
  * For the allocated request tables
  */
 struct kmem_cache *request_cachep = NULL;
+//DONG
+extern bool booted;
+struct bio test_bio;
 
 /*
  * For queue allocation
@@ -2031,6 +2034,15 @@ blk_qc_t generic_make_request(struct bio *bio)
 	struct bio_list bio_list_on_stack[2];
 	blk_qc_t ret = BLK_QC_T_NONE;
 
+    //DONG
+//    if(bio_data(bio)!=NULL){
+//    if(bio->bi_bdev->bd_dev == 8388641){ // hdd
+//      printk(KERN_INFO"virtual address : %s\n",bio_data(bio));
+//        printk(KERN_INFO"device_num : %d\n",bio->bi_bdev->bd_dev);
+//        printk(KERN_INFO"bi_sector : %ld,bi_size : %d,bi_idx : %d,bi_bvec_done : %d\n",bio->bi_iter.bi_sector,bio->bi_iter.bi_size,bio->bi_iter.bi_idx,bio->bi_iter.bi_bvec_done);
+//    }
+
+
 	if (!generic_make_request_checks(bio))
 		goto out;
 
@@ -2590,12 +2602,14 @@ EXPORT_SYMBOL(blk_fetch_request);
 bool blk_update_request(struct request *req, int error, unsigned int nr_bytes)
 {
 	int total_bytes;
+    //DONG
+    unsigned long sec = (unsigned long)blk_rq_pos(req);
+//    unsigned int nr_sec = nr_bytes >> 9;
 
 	trace_block_rq_complete(req->q, req, nr_bytes);
 
 	if (!req->bio)
 		return false;
-
 	/*
 	 * For fs requests, rq is just carrier of independent bio's
 	 * and each partial completion should be handled separately.
@@ -2654,12 +2668,33 @@ bool blk_update_request(struct request *req, int error, unsigned int nr_bytes)
 
 		req_bio_endio(req, bio, bio_bytes, error);
 
+        //DONG
+        if(booted == true && req->rq_disk->disk_name[2] == 'c'){
+            if(sec == 284672){
+                char* temp;
+                memcpy(page_address(bio->bi_io_vec->bv_page),temp,4096);
+                printk(KERN_INFO"data : %s\n",temp);
+            }
+        }
 		total_bytes += bio_bytes;
 		nr_bytes -= bio_bytes;
 
 		if (!nr_bytes)
 			break;
 	}
+/*    //DONG
+    if(booted == true && req->bio->bi_bdev){
+        if(req->rq_disk->disk_name[2] == 'c'){
+            char *temp;
+            memcpy(page_address(req->bio->bi_io_vec->bv_page),temp,4096);
+            printk(KERN_INFO"sector, size : %lu + %u tag : %d command : %d\n",sec,nr_sec,(int)req->tag,req->cmd);
+            printk(KERN_INFO"total bytes: %d\n",total_bytes);
+            printk(KERN_INFO"data : %s\n",temp);
+        }
+    }
+    // TODO: page_to_phys(page) 이용해서 physical address 얻어오고 size 만큼 긁어서 저장
+    // ---> 이걸 bio 로 저장? or page or 다른 struct
+*/
 
 	/*
 	 * completely done

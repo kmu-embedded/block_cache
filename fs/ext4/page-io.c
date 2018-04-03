@@ -64,6 +64,8 @@ static void ext4_finish_bio(struct bio *bio)
 	int i;
 	struct bio_vec *bvec;
 
+    //DONG
+//    printk(KERN_INFO"ext4_finish_bio\n");
 	bio_for_each_segment_all(bvec, bio, i) {
 		struct page *page = bvec->bv_page;
 #ifdef CONFIG_EXT4_FS_ENCRYPTION
@@ -315,6 +317,7 @@ static void ext4_end_bio(struct bio *bio)
 	ext4_io_end_t *io_end = bio->bi_private;
 	sector_t bi_sector = bio->bi_iter.bi_sector;
 
+//    printk(KERN_INFO"ext4_end_bio\n");
 	BUG_ON(!io_end);
 	bio->bi_end_io = NULL;
 

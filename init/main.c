@@ -110,6 +110,9 @@ bool early_boot_irqs_disabled __read_mostly;
 enum system_states system_state __read_mostly;
 EXPORT_SYMBOL(system_state);
 
+//DONG
+bool booted = false;
+
 /*
  * Boot command-line arguments
  */
@@ -402,7 +405,7 @@ static noinline void __init_refok rest_init(void)
 	kthreadd_task = find_task_by_pid_ns(pid, &init_pid_ns);
 	rcu_read_unlock();
 	complete(&kthreadd_done);
-
+    booted=true;
 	/*
 	 * The boot idle thread must execute schedule()
 	 * at least once to get things moving:
