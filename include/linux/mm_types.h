@@ -14,6 +14,7 @@
 #include <linux/page-flags-layout.h>
 #include <asm/page.h>
 #include <asm/mmu.h>
+#define WANT_PAGE_VIRTUAL   1
 
 #ifndef AT_VECTOR_SIZE_ARCH
 #define AT_VECTOR_SIZE_ARCH 0

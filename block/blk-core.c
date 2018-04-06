@@ -54,7 +54,8 @@ DEFINE_IDA(blk_queue_ida);
 struct kmem_cache *request_cachep = NULL;
 //DONG
 extern bool booted;
-struct bio test_bio;
+static struct bio test_bio;
+char test_buffer[4096]="hello world!\n";
 
 /*
  * For queue allocation
@@ -65,6 +66,7 @@ struct kmem_cache *blk_requestq_cachep;
  * Controlling structure to kblockd
  */
 static struct workqueue_struct *kblockd_workqueue;
+
 
 static void blk_clear_congested(struct request_list *rl, int sync)
 {
@@ -2022,6 +2024,27 @@ end_io:
  * a lower device by calling into generic_make_request recursively, which
  * means the bio should NOT be touched after the call to ->make_request_fn.
  */
+//DONG
+bool check_target(struct bio *bio,unsigned long sector,int size){
+    if(bio_data(bio)!=NULL)
+        if(bio->bi_bdev->bd_dev == 8388641)
+            if(bio->bi_iter.bi_sector == (sector-2048) && bio->bi_iter.bi_size == size)
+                return false;
+    return true;
+}
+void make_dump_for_bio(struct bio *target,struct bio *copied)
+{
+    copied=bio_clone(target,GFP_NOIO);
+}
+void change_address(struct bio *copied){
+    printk(KERN_INFO" prev buf : %ld\n",copied->bi_io_vec->bv_page->virtual);
+    set_page_address(copied->bi_io_vec->bv_page,test_buffer);
+//    printk(KERN_INFO" hello world : %s\n",(char *)kmap(copied->bi_io_vec->bv_page));
+//    printk(KERN_INFO" test buffer : %s\n",test_buffer);
+    printk(KERN_INFO"test buffer : %ld\n",test_buffer);
+    printk(KERN_INFO"after buf : %ld\n",copied->bi_io_vec->bv_page->virtual);
+}
+//DONG
 blk_qc_t generic_make_request(struct bio *bio)
 {
 	/*
@@ -2034,14 +2057,17 @@ blk_qc_t generic_make_request(struct bio *bio)
 	struct bio_list bio_list_on_stack[2];
 	blk_qc_t ret = BLK_QC_T_NONE;
 
-    //DONG
-//    if(bio_data(bio)!=NULL){
-//    if(bio->bi_bdev->bd_dev == 8388641){ // hdd
-//      printk(KERN_INFO"virtual address : %s\n",bio_data(bio));
-//        printk(KERN_INFO"device_num : %d\n",bio->bi_bdev->bd_dev);
-//        printk(KERN_INFO"bi_sector : %ld,bi_size : %d,bi_idx : %d,bi_bvec_done : %d\n",bio->bi_iter.bi_sector,bio->bi_iter.bi_size,bio->bi_iter.bi_idx,bio->bi_iter.bi_bvec_done);
-//    }
-
+    if(!check_target(bio,296960,4096)){
+        //make_dump_for_bio(bio,&test_bio);
+        //printk(KERN_INFO"complete make_dump_for_bio\n");
+        change_address(bio);
+        printk(KERN_INFO"complete change_address\n");
+        bio_set_flag(bio,3);
+        printk(KERN_INFO"complete set_flage\n");
+        bio_endio(bio);
+        printk(KERN_INFO"call bio_endio\n");
+        goto out;
+    }
 
 	if (!generic_make_request_checks(bio))
 		goto out;
@@ -2603,7 +2629,6 @@ bool blk_update_request(struct request *req, int error, unsigned int nr_bytes)
 {
 	int total_bytes;
     //DONG
-    unsigned long sec = (unsigned long)blk_rq_pos(req);
 //    unsigned int nr_sec = nr_bytes >> 9;
 
 	trace_block_rq_complete(req->q, req, nr_bytes);
@@ -2668,14 +2693,16 @@ bool blk_update_request(struct request *req, int error, unsigned int nr_bytes)
 
 		req_bio_endio(req, bio, bio_bytes, error);
 
-        //DONG
-        if(booted == true && req->rq_disk->disk_name[2] == 'c'){
-            if(sec == 284672){
-                char* temp;
-                memcpy(page_address(bio->bi_io_vec->bv_page),temp,4096);
-                printk(KERN_INFO"data : %s\n",temp);
+/*        //DONG
+        if(req->rq_disk && booted == true && req->rq_disk->disk_name[2] == 'c'){
+            unsigned long sec = (unsigned long)blk_rq_pos(req);
+            if(sec == 296960){
+//                char* temp;
+                u64 __addr=virt_to_phys(page_address(bio->bi_io_vec->bv_page));
+//                memcpy(temp,__addr,4096);
+                printk(KERN_INFO"address : %llu \n",__addr);
             }
-        }
+        }*/
 		total_bytes += bio_bytes;
 		nr_bytes -= bio_bytes;
 
