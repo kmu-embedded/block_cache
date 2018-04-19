@@ -94,6 +94,12 @@ static struct bio *blk_bio_segment_split(struct request_queue *q,
 	const unsigned max_sectors = get_max_io_size(q, bio);
 	unsigned bvecs = 0;
 
+
+    if(bio->bi_iter.bi_sector == 296960){
+        printk(KERN_INFO"inside blk_bio_segment_split\n");
+        printk(KERN_INFO"bi_sector : %ld bi_size : %u bi_idx : %u bi_bvec_done : %u\n",bio->bi_iter.bi_sector,bio->bi_iter.bi_size,bio->bi_iter.bi_idx,bio->bi_iter.bi_bvec_done);
+        printk(KERN_INFO"bv_len : %u bv_offset : %u\n",bio->bi_io_vec[bio->bi_iter.bi_idx].bv_len,bio->bi_io_vec[bio->bi_iter.bi_idx].bv_offset);
+    }
 	bio_for_each_segment(bv, bio, iter) {
 		/*
 		 * With arbitrary bio size, the incoming bio may be very
@@ -137,7 +143,6 @@ static struct bio *blk_bio_segment_split(struct request_queue *q,
 				goto split;
 			/* Make this single bvec as the 1st segment */
 		}
-
 		if (bvprvp && blk_queue_cluster(q)) {
 			if (seg_size + bv.bv_len > queue_max_segment_size(q))
 				goto new_segment;
@@ -182,7 +187,6 @@ split:
 	bio->bi_seg_front_size = front_seg_size;
 	if (seg_size > bio->bi_seg_back_size)
 		bio->bi_seg_back_size = seg_size;
-
 	return do_split ? new : NULL;
 }
 
@@ -191,7 +195,6 @@ void blk_queue_split(struct request_queue *q, struct bio **bio,
 {
 	struct bio *split, *res;
 	unsigned nsegs;
-
 	if ((*bio)->bi_rw & REQ_DISCARD)
 		split = blk_bio_discard_split(q, *bio, bs, &nsegs);
 	else if ((*bio)->bi_rw & REQ_WRITE_SAME)
@@ -207,7 +210,6 @@ void blk_queue_split(struct request_queue *q, struct bio **bio,
 	if (split) {
 		/* there isn't chance to merge the splitted bio */
 		split->bi_rw |= REQ_NOMERGE;
-
 		bio_chain(split, *bio);
 		generic_make_request(*bio);
 		*bio = split;

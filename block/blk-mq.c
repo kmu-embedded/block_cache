@@ -1357,7 +1357,6 @@ static blk_qc_t blk_sq_make_request(struct request_queue *q, struct bio *bio)
 			return BLK_QC_T_NONE;
 	} else
 		request_count = blk_plug_queued_count(q);
-
 	rq = blk_mq_map_request(q, bio, &data);
 	if (unlikely(!rq))
 		return BLK_QC_T_NONE;

@@ -45,10 +45,10 @@ struct bvec_iter {
  */
 struct bio {
 	struct bio		*bi_next;	/* request queue link */
-	struct block_device	*bi_bdev;
-	unsigned int		bi_flags;	/* status, command, etc */
+	struct block_device	*bi_bdev;                              //x
+	unsigned int		bi_flags;	/* status, command, etc */ //x
 	int			bi_error;
-	unsigned long		bi_rw;		/* bottom bits READ/WRITE,
+	unsigned long		bi_rw;		/* bottom bits READ/WRITE, //x
 						 * top bits priority
 						 */
 
@@ -57,14 +57,14 @@ struct bio {
 	/* Number of segments in this BIO after
 	 * physical address coalescing is performed.
 	 */
-	unsigned int		bi_phys_segments;
+	unsigned int		bi_phys_segments;                       //x
 
 	/*
 	 * To keep track of the max segment size, we account for the
 	 * sizes of the first and last mergeable segments in this bio.
 	 */
-	unsigned int		bi_seg_front_size;
-	unsigned int		bi_seg_back_size;
+	unsigned int		bi_seg_front_size;                      //x
+	unsigned int		bi_seg_back_size;                       //x
 
 	atomic_t		__bi_remaining;
 
@@ -85,13 +85,13 @@ struct bio {
 #endif
 	};
 
-	unsigned short		bi_vcnt;	/* how many bio_vec's */
+	unsigned short		bi_vcnt;	/* how many bio_vec's */    //x
 
 	/*
 	 * Everything starting with bi_max_vecs will be preserved by bio_reset()
 	 */
 
-	unsigned short		bi_max_vecs;	/* max bvl_vecs we can hold */
+	unsigned short		bi_max_vecs;	/* max bvl_vecs we can hold */  //x
 
 	atomic_t		__bi_cnt;	/* pin count */
 

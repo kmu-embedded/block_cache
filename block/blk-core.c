@@ -33,6 +33,7 @@
 #include <linux/ratelimit.h>
 #include <linux/pm_runtime.h>
 #include <linux/blk-cgroup.h>
+#include <linux/bcc.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/block.h>
@@ -48,13 +49,19 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(block_unplug);
 
 DEFINE_IDA(blk_queue_ida);
 
+//DONG
+struct bc bc_set[MAX_NUM_SECS];
+EXPORT_SYMBOL(bc_set);
+volatile int num_of_sector=0;
+EXPORT_SYMBOL(num_of_sector);
+volatile int load_bio_flag=-1;
+EXPORT_SYMBOL(load_bio_flag);
 /*
  * For the allocated request tables
  */
 struct kmem_cache *request_cachep = NULL;
 //DONG
 extern bool booted;
-static struct bio test_bio;
 char test_buffer[4096]="hello world!\n";
 
 /*
@@ -1831,7 +1838,7 @@ static inline void blk_partition_remap(struct bio *bio)
 	if (bio_sectors(bio) && bdev != bdev->bd_contains) {
 		struct hd_struct *p = bdev->bd_part;
 
-		bio->bi_iter.bi_sector += p->start_sect;
+        bio->bi_iter.bi_sector += p->start_sect;
 		bio->bi_bdev = bdev->bd_contains;
 
 		trace_block_bio_remap(bdev_get_queue(bio->bi_bdev), bio,
@@ -1946,12 +1953,12 @@ generic_make_request_checks(struct bio *bio)
 				bio->bi_iter.bi_size))
 		goto end_io;
 
+
 	/*
 	 * If this device has partitions, remap block n
 	 * of partition p to block n+start(p) of the disk.
 	 */
 	blk_partition_remap(bio);
-
 	if (bio_check_eod(bio, nr_sectors))
 		goto end_io;
 
@@ -1979,6 +1986,7 @@ generic_make_request_checks(struct bio *bio)
 		err = -EOPNOTSUPP;
 		goto end_io;
 	}
+
 
 	/*
 	 * Various block parts want %current->io_context and lazy ioc
@@ -2025,24 +2033,23 @@ end_io:
  * means the bio should NOT be touched after the call to ->make_request_fn.
  */
 //DONG
-bool check_target(struct bio *bio,unsigned long sector,int size){
+/*bool check_target(struct bio *bio,unsigned long sector,int size){
     if(bio_data(bio)!=NULL)
         if(bio->bi_bdev->bd_dev == 8388641)
-            if(bio->bi_iter.bi_sector == (sector-2048) && bio->bi_iter.bi_size == size)
+            if(bio->bi_iter.bi_sector == (sector-(bio->bi_bdev->bd_part->start_sect)) && bio->bi_iter.bi_size == size)
                 return false;
     return true;
+}*/
+int check_target(struct bio *bio,unsigned long sector,int size){
+    int i=0;
+    for(i=0;i<num_of_sector;i++){
+        if(bc_set[i].sector-(bio->bi_bdev->bd_part->start_sect) == sector && (bc_set[i].size<<9) == size && load_bio_flag != 1)
+            return i;
+    }
+    return -1;
 }
-void make_dump_for_bio(struct bio *target,struct bio *copied)
-{
-    copied=bio_clone(target,GFP_NOIO);
-}
-void change_address(struct bio *copied){
-    printk(KERN_INFO" prev buf : %ld\n",copied->bi_io_vec->bv_page->virtual);
-    set_page_address(copied->bi_io_vec->bv_page,test_buffer);
-//    printk(KERN_INFO" hello world : %s\n",(char *)kmap(copied->bi_io_vec->bv_page));
-//    printk(KERN_INFO" test buffer : %s\n",test_buffer);
-    printk(KERN_INFO"test buffer : %ld\n",test_buffer);
-    printk(KERN_INFO"after buf : %ld\n",copied->bi_io_vec->bv_page->virtual);
+void change_address(struct bio *copied,int ret){
+    set_page_address(copied->bi_io_vec->bv_page,bc_set[ret].data);
 }
 //DONG
 blk_qc_t generic_make_request(struct bio *bio)
@@ -2056,19 +2063,29 @@ blk_qc_t generic_make_request(struct bio *bio)
 	 */
 	struct bio_list bio_list_on_stack[2];
 	blk_qc_t ret = BLK_QC_T_NONE;
-
-    if(!check_target(bio,296960,4096)){
+    int tmp;
+//    if(!check_target(bio,296960,4096)){
+//        printk(KERN_INFO"%s\n",bio->bi_bdev->bd_disk->disk_name);
+//        printk(KERN_INFO"%d\n",bio->bi_bdev->bd_part->start_sect);
         //make_dump_for_bio(bio,&test_bio);
         //printk(KERN_INFO"complete make_dump_for_bio\n");
-        change_address(bio);
-        printk(KERN_INFO"complete change_address\n");
+//        change_address(bio);
+//        printk(KERN_INFO"complete change_address\n");
+//        bio_set_flag(bio,3);
+//        printk(KERN_INFO"complete set_flage\n");
+//        bio_endio(bio);
+//        printk(KERN_INFO"call bio_endio\n");
+//        goto out;
+//    }
+    tmp = check_target(bio,bio->bi_iter.bi_sector,bio->bi_iter.bi_size);
+    if (tmp != -1)
+    {
+        printk(KERN_INFO"hit block cache\n");
+        change_address(bio,tmp);
         bio_set_flag(bio,3);
-        printk(KERN_INFO"complete set_flage\n");
         bio_endio(bio);
-        printk(KERN_INFO"call bio_endio\n");
         goto out;
     }
-
 	if (!generic_make_request_checks(bio))
 		goto out;
 
@@ -2156,14 +2173,12 @@ EXPORT_SYMBOL(generic_make_request);
 blk_qc_t submit_bio(int rw, struct bio *bio)
 {
 	bio->bi_rw |= rw;
-
 	/*
 	 * If it's a regular read/write or a barrier with data attached,
 	 * go through the normal accounting stuff before submission.
 	 */
 	if (bio_has_data(bio)) {
 		unsigned int count;
-
 		if (unlikely(rw & REQ_WRITE_SAME))
 			count = bdev_logical_block_size(bio->bi_bdev) >> 9;
 		else
@@ -2186,7 +2201,6 @@ blk_qc_t submit_bio(int rw, struct bio *bio)
 				count);
 		}
 	}
-
 	return generic_make_request(bio);
 }
 EXPORT_SYMBOL(submit_bio);
@@ -2645,11 +2659,11 @@ bool blk_update_request(struct request *req, int error, unsigned int nr_bytes)
 	 */
 	if (req->cmd_type == REQ_TYPE_FS)
 		req->errors = 0;
-
+    
 	if (error && req->cmd_type == REQ_TYPE_FS &&
 	    !(req->cmd_flags & REQ_QUIET)) {
 		char *error_type;
-
+        printk(KERN_INFO"error : %d req->cmd_type : %d req->cmd_flags : %ld \n",error,req->cmd_flags,req->cmd_flags);
 		switch (error) {
 		case -ENOLINK:
 			error_type = "recoverable transport";
