@@ -20,15 +20,23 @@
 #include <linux/fs.h>
 #include <linux/workqueue.h>
 #include <linux/iocontext.h>
+#include <linux/uaccess.h>
 
 
 #define MAX_NUM_SECS    512
 struct bc{
     unsigned long sector;
     int size;
-    void* data;
+//    void* data;
+    int start;
+    int end;
 };
 
+struct block_data{
+    char data[4096];
+};
 
+struct bc_bitmap{
 
+};
 #endif /* BLOCK_CACHE */

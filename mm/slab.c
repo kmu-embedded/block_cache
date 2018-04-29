@@ -3240,8 +3240,10 @@ slab_alloc(struct kmem_cache *cachep, gfp_t flags, unsigned long caller)
 
 	lockdep_trace_alloc(flags);
 
-	if (slab_should_failslab(cachep, flags))
+	if (slab_should_failslab(cachep, flags)){
+		printk(KERN_INFO"here\n");
 		return NULL;
+	}	
 
 	cachep = memcg_kmem_get_cache(cachep, flags);
 

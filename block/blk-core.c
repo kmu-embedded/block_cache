@@ -56,6 +56,9 @@ volatile int num_of_sector=0;
 EXPORT_SYMBOL(num_of_sector);
 volatile int load_bio_flag=-1;
 EXPORT_SYMBOL(load_bio_flag);
+
+struct block_data bd_set[MAX_NUM_SECS];
+EXPORT_SYMBOL(bd_set);
 /*
  * For the allocated request tables
  */
@@ -2049,7 +2052,7 @@ int check_target(struct bio *bio,unsigned long sector,int size){
     return -1;
 }
 void change_address(struct bio *copied,int ret){
-    set_page_address(copied->bi_io_vec->bv_page,bc_set[ret].data);
+    set_page_address(copied->bi_io_vec->bv_page,bd_set[ret].data);
 }
 //DONG
 blk_qc_t generic_make_request(struct bio *bio)
@@ -2064,24 +2067,23 @@ blk_qc_t generic_make_request(struct bio *bio)
 	struct bio_list bio_list_on_stack[2];
 	blk_qc_t ret = BLK_QC_T_NONE;
     int tmp;
-//    if(!check_target(bio,296960,4096)){
-//        printk(KERN_INFO"%s\n",bio->bi_bdev->bd_disk->disk_name);
-//        printk(KERN_INFO"%d\n",bio->bi_bdev->bd_part->start_sect);
-        //make_dump_for_bio(bio,&test_bio);
-        //printk(KERN_INFO"complete make_dump_for_bio\n");
-//        change_address(bio);
-//        printk(KERN_INFO"complete change_address\n");
-//        bio_set_flag(bio,3);
-//        printk(KERN_INFO"complete set_flage\n");
-//        bio_endio(bio);
-//        printk(KERN_INFO"call bio_endio\n");
-//        goto out;
-//    }
-    tmp = check_target(bio,bio->bi_iter.bi_sector,bio->bi_iter.bi_size);
+    
+    //if(bio->bi_iter.bi_sector == 281368-2048)
+    //{
+    //    printk(KERN_INFO"bi_size = %d\n",bio->bi_iter.bi_size);
+    //    printk(KERN_INFO"bi_phys_segments = %d\n",bio->bi_phys_segments);
+    //    printk(KERN_INFO"bi_vcnt = %d\n",bio->bi_vcnt);
+    //    printk(KERN_INFO"bi_idx = %d\n",bio->bi_iter.bi_idx);
+    //    printk(KERN_INFO"bi_bvec_done = %d\n",bio->bi_iter.bi_bvec_done);
+    //}
+   // tmp = check_target(bio,bio->bi_iter.bi_sector,bio->bi_iter.bi_size);
     if (tmp != -1)
     {
         printk(KERN_INFO"hit block cache\n");
         change_address(bio,tmp);
+        printk(KERN_INFO"%d\n",tmp);
+        printk(KERN_INFO"data : %s(bio) %s(data)",page_address(bio->bi_io_vec->bv_page),bd_set[tmp].data);
+        printk(KERN_INFO"pointer : %d(bio) %d(bio)",bio->bi_io_vec->bv_page->virtual,bd_set[tmp].data);
         bio_set_flag(bio,3);
         bio_endio(bio);
         goto out;
