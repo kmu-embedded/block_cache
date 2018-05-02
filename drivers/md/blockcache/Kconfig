@@ -1,0 +1,25 @@
+config BLOCK_CACHE
+	tristate "Block Cache Support for Prefetching"
+	select BLOCK_CACHE_MEMORY
+	select BLOCK_CACHE_CONTROL
+	select BLOCK_CACHE_BITMAP
+	---help---
+	Prototype
+
+config BLOCK_CACHE_MEMORY
+	bool "Memory setup for the Base of Block Cache"
+	depends on BLOCK_CACHE
+	---help---
+	Prototype
+
+config BLOCK_CACHE_CONTROL
+	bool "/sys/kernel/bcc for Controlloing Block Cache"
+	depends on BLOCK_CACHE
+	---help---
+	prototype
+
+config BLOCK_CACHE_BITMAP
+	bool "check and marking bitmap"
+	depends on BLOCK_CACHE
+	---help---
+	prototype

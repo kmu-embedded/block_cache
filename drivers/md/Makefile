@@ -63,3 +63,7 @@ obj-$(CONFIG_DM_LOG_WRITES)	+= dm-log-writes.o
 ifeq ($(CONFIG_DM_UEVENT),y)
 dm-mod-objs			+= dm-uevent.o
 endif
+
+obj-$(CONFIG_BLOCK_CACHE) += blockcache/
+
+
