@@ -24,6 +24,7 @@
 
 
 #define MAX_NUM_SECS    512
+#define WANT_PAGE_VIRTUAL 1
 struct bc{
     unsigned long sector;
     int size;

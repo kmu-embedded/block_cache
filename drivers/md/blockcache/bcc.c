@@ -5,6 +5,8 @@ extern struct bc bc_set[MAX_NUM_SECS];
 extern volatile int num_of_sector;
 extern volatile int load_bio_flag;
 extern struct block_data bd_set[MAX_NUM_SECS];
+extern struct bio_set* fs_bio_set;
+extern volatile int cur_bd_set_idx;
 dev_t dev = 0;
 static struct class *dev_class;
 static struct cdev bcc_cdev;
@@ -95,7 +97,19 @@ void store_sector_and_size(unsigned long target_sector,int size)
     //TODO : 맥스 값에 대한 예외처리 해줘야함
     bc_set[num_of_sector].sector = target_sector;
     bc_set[num_of_sector].size   = size;
+    if(size == 8) // 1블럭일때
+    {
+        bc_set[num_of_sector].start = cur_bd_set_idx;
+        bc_set[num_of_sector].end   = cur_bd_set_idx;
+    }
+    else // 여러블럭일때
+    {
+        bc_set[num_of_sector].start = cur_bd_set_idx;
+        cur_bd_set_idx += (size >> 3) - 1;
+        bc_set[num_of_sector].end   = cur_bd_set_idx;
+    }
     num_of_sector++;
+    cur_bd_set_idx++;
 }
 
 static ssize_t free_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
@@ -127,10 +141,20 @@ static ssize_t load_show(struct kobject *kobj, struct kobj_attribute *attr, char
 }
 static ssize_t load_store(struct kobject *kobj, struct kobj_attribute *attr, char *buf, size_t count)
 {
-    int i;
+    int i,j;
     load_bio_flag=1;
     for(i=0;i<num_of_sector;i++)
-        load_bio(bc_set[i].sector,bc_set[i].size,bd_set[i].data);
+    {
+        if(bc_set[i].size == 8)
+            load_bio(bc_set[i].sector,bc_set[i].size,bd_set[bc_set[i].start].data);
+        else
+        {
+           for(j=bc_set[i].start;j<=bc_set[i].end;j++){
+               //set_memory_x((unsigned long)bd_set[j].data,1);
+               load_bio(bc_set[i].sector+(j<<3),8,bd_set[j].data);
+           }
+        }
+    }
     load_bio_flag=0;
     return count;
 }
@@ -148,19 +172,20 @@ int load_bio(unsigned long target_sector,int target_size, void* data)
 {
     struct bio bio;
     struct bio_vec bio_vec;
-    struct page *page;
+    struct page *page; // bio page 갯수?어떻게 할건지
 
-    printk("%s\n", __FUNCTION__);
-
+    // page allocation
     page = alloc_page(GFP_TEMPORARY);
     kmap(page);
-    if (!page) {
-        printk(KERN_INFO"failed: alloc page\n");
+    if(!page)
+    {
+        printk(KERN_INFO"failed : alloc page\n");
         goto error_page;
     }
     else
         printk(KERN_INFO"success: alloc page\n");
 
+    // make custom bio
     bio_init(&bio);
     bio.bi_bdev = blkdev_get_by_path("/dev/sdc1", FMODE_READ | FMODE_WRITE, NULL);
     if(IS_ERR(bio.bi_bdev))
@@ -173,7 +198,7 @@ int load_bio(unsigned long target_sector,int target_size, void* data)
     // do things done in bio_add_page()
     bio.bi_io_vec = &bio_vec;
     bio_vec.bv_page = page;
-    bio_vec.bv_len = target_size << 9;
+    bio_vec.bv_len = 4096;
     bio_vec.bv_offset = 0;
     bio.bi_vcnt = 1;
 
@@ -183,16 +208,15 @@ int load_bio(unsigned long target_sector,int target_size, void* data)
 
     submit_bio_wait(READ, &bio);
 
-    printk(KERN_INFO"%s\n", page_address(page) );
-
     if(!data)
         printk("error\n");
     else
         memcpy(data,page_address(page),4096);
-    printk(KERN_INFO"%s\n", data );
-    printk(KERN_INFO"pointer page : %d data %d\n",page_address(page),data);
-    return 0;
 
+    printk(KERN_INFO"original : %s\n",page_address(page));
+    printk(KERN_INFO"copied : %s\n",data);
+    __free_page(page);
+    return 0;
 error_page:
     __free_page(page);
     return -1;

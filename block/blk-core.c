@@ -56,7 +56,8 @@ volatile int num_of_sector=0;
 EXPORT_SYMBOL(num_of_sector);
 volatile int load_bio_flag=-1;
 EXPORT_SYMBOL(load_bio_flag);
-
+volatile int cur_bd_set_idx=0;
+EXPORT_SYMBOL(cur_bd_set_idx);
 struct block_data bd_set[MAX_NUM_SECS];
 EXPORT_SYMBOL(bd_set);
 /*
@@ -2036,13 +2037,6 @@ end_io:
  * means the bio should NOT be touched after the call to ->make_request_fn.
  */
 //DONG
-/*bool check_target(struct bio *bio,unsigned long sector,int size){
-    if(bio_data(bio)!=NULL)
-        if(bio->bi_bdev->bd_dev == 8388641)
-            if(bio->bi_iter.bi_sector == (sector-(bio->bi_bdev->bd_part->start_sect)) && bio->bi_iter.bi_size == size)
-                return false;
-    return true;
-}*/
 int check_target(struct bio *bio,unsigned long sector,int size){
     int i=0;
     for(i=0;i<num_of_sector;i++){
@@ -2051,8 +2045,20 @@ int check_target(struct bio *bio,unsigned long sector,int size){
     }
     return -1;
 }
-void change_address(struct bio *copied,int ret){
-    set_page_address(copied->bi_io_vec->bv_page,bd_set[ret].data);
+void hit_stored_data(struct bio *dst,int ret){
+    int i=0;
+    if(bc_set[ret].size == 8)
+        set_page_address(dst->bi_io_vec->bv_page,bd_set[bc_set[ret].start].data);
+    else
+    {
+        int tmp=0;
+        for(i=bc_set[ret].start;i<=bc_set[ret].end;i++){
+            printk(KERN_INFO"data : %s\n",bd_set[i].data);
+//            set_page_address(dst->bi_io_vec[tmp++].bv_page,bd_set[i].data);
+//            set_memory_ro((unsigned long)dst->bi_io_vec[tmp-1].bv_page,1);
+            memcpy(page_address(dst->bi_io_vec[tmp++].bv_page),bd_set[i].data,4096);
+        }
+    }
 }
 //DONG
 blk_qc_t generic_make_request(struct bio *bio)
@@ -2067,23 +2073,11 @@ blk_qc_t generic_make_request(struct bio *bio)
 	struct bio_list bio_list_on_stack[2];
 	blk_qc_t ret = BLK_QC_T_NONE;
     int tmp;
-    
-    //if(bio->bi_iter.bi_sector == 281368-2048)
-    //{
-    //    printk(KERN_INFO"bi_size = %d\n",bio->bi_iter.bi_size);
-    //    printk(KERN_INFO"bi_phys_segments = %d\n",bio->bi_phys_segments);
-    //    printk(KERN_INFO"bi_vcnt = %d\n",bio->bi_vcnt);
-    //    printk(KERN_INFO"bi_idx = %d\n",bio->bi_iter.bi_idx);
-    //    printk(KERN_INFO"bi_bvec_done = %d\n",bio->bi_iter.bi_bvec_done);
-    //}
-   // tmp = check_target(bio,bio->bi_iter.bi_sector,bio->bi_iter.bi_size);
+    tmp = check_target(bio,bio->bi_iter.bi_sector,bio->bi_iter.bi_size);
     if (tmp != -1)
     {
         printk(KERN_INFO"hit block cache\n");
-        change_address(bio,tmp);
-        printk(KERN_INFO"%d\n",tmp);
-        printk(KERN_INFO"data : %s(bio) %s(data)",page_address(bio->bi_io_vec->bv_page),bd_set[tmp].data);
-        printk(KERN_INFO"pointer : %d(bio) %d(bio)",bio->bi_io_vec->bv_page->virtual,bd_set[tmp].data);
+        hit_stored_data(bio,tmp);
         bio_set_flag(bio,3);
         bio_endio(bio);
         goto out;
@@ -2644,8 +2638,6 @@ EXPORT_SYMBOL(blk_fetch_request);
 bool blk_update_request(struct request *req, int error, unsigned int nr_bytes)
 {
 	int total_bytes;
-    //DONG
-//    unsigned int nr_sec = nr_bytes >> 9;
 
 	trace_block_rq_complete(req->q, req, nr_bytes);
 
@@ -2661,7 +2653,6 @@ bool blk_update_request(struct request *req, int error, unsigned int nr_bytes)
 	 */
 	if (req->cmd_type == REQ_TYPE_FS)
 		req->errors = 0;
-    
 	if (error && req->cmd_type == REQ_TYPE_FS &&
 	    !(req->cmd_flags & REQ_QUIET)) {
 		char *error_type;
@@ -2708,36 +2699,12 @@ bool blk_update_request(struct request *req, int error, unsigned int nr_bytes)
 			req->bio = bio->bi_next;
 
 		req_bio_endio(req, bio, bio_bytes, error);
-
-/*        //DONG
-        if(req->rq_disk && booted == true && req->rq_disk->disk_name[2] == 'c'){
-            unsigned long sec = (unsigned long)blk_rq_pos(req);
-            if(sec == 296960){
-//                char* temp;
-                u64 __addr=virt_to_phys(page_address(bio->bi_io_vec->bv_page));
-//                memcpy(temp,__addr,4096);
-                printk(KERN_INFO"address : %llu \n",__addr);
-            }
-        }*/
 		total_bytes += bio_bytes;
 		nr_bytes -= bio_bytes;
 
 		if (!nr_bytes)
 			break;
 	}
-/*    //DONG
-    if(booted == true && req->bio->bi_bdev){
-        if(req->rq_disk->disk_name[2] == 'c'){
-            char *temp;
-            memcpy(page_address(req->bio->bi_io_vec->bv_page),temp,4096);
-            printk(KERN_INFO"sector, size : %lu + %u tag : %d command : %d\n",sec,nr_sec,(int)req->tag,req->cmd);
-            printk(KERN_INFO"total bytes: %d\n",total_bytes);
-            printk(KERN_INFO"data : %s\n",temp);
-        }
-    }
-    // TODO: page_to_phys(page) 이용해서 physical address 얻어오고 size 만큼 긁어서 저장
-    // ---> 이걸 bio 로 저장? or page or 다른 struct
-*/
 
 	/*
 	 * completely done
