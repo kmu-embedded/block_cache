@@ -256,8 +256,6 @@ void bitmap_set(unsigned long *map, unsigned int start, int len)
 	int bits_to_set = BITS_PER_LONG - (start % BITS_PER_LONG);
 	unsigned long mask_to_set = BITMAP_FIRST_WORD_MASK(start);
 
-	printk("map=%lu", (unsigned long) *map);
-
 	while (len - bits_to_set >= 0) {
 		*p |= mask_to_set;
 		len -= bits_to_set;

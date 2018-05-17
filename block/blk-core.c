@@ -40,6 +40,12 @@
 #include "blk.h"
 #include "blk-mq.h"
 
+#ifdef CONFIG_BLOCK_CACHE_BITMAP
+#include <linux/bcc.h>
+struct bcc_bitmap bcc_mitmap;
+EXPORT_SYMBOL(bcc_mitmap);
+#endif
+
 EXPORT_TRACEPOINT_SYMBOL_GPL(block_bio_remap);
 EXPORT_TRACEPOINT_SYMBOL_GPL(block_rq_remap);
 EXPORT_TRACEPOINT_SYMBOL_GPL(block_bio_complete);

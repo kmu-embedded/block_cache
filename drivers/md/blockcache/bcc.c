@@ -5,11 +5,13 @@
 #include <linux/bcc.h>
 #include <linux/bitmap.h>
 #include <linux/device.h>
+#include <linux/bootmem.h> // bitmap
 
 
 /* 
  * init & exit function for the device driver
  */
+
 static int __init bcc_driver_init(void);
 static void __exit bcc_driver_exit(void);
 
@@ -31,7 +33,7 @@ struct block_cache_data bd_set[MAX_NUM_SECS];
 #define BITMAP_SHOW_REF_LEVEL 1
 
 #if BITMAP_SHOW_REF_LEVEL == 1
-unsigned long *bcc_bitmap;
+struct bcc_bitmap bcc_bitmap;
 #else
 static DECLARE_BITMAP(bcc_bitmap, 300);
 #endif
@@ -144,7 +146,7 @@ static ssize_t insert_show(struct kobject *kobj, struct kobj_attribute *attr, ch
 }
 
 
-static ssize_t insert_store(struct kobject *kobj, struct kobj_attribute *attr, char *buf, size_t count)
+static ssize_t insert_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
 {
     unsigned long target_sector;
     int size;
@@ -164,7 +166,7 @@ static ssize_t free_show(struct kobject *kobj, struct kobj_attribute *attr, char
 }
 
 
-static ssize_t free_store(struct kobject *kobj, struct kobj_attribute *attr, char *buf, size_t count)
+static ssize_t free_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
 {
     free_buffer();
     return count;
@@ -185,7 +187,7 @@ static ssize_t load_show(struct kobject *kobj, struct kobj_attribute *attr, char
 }
 
 
-static ssize_t load_store(struct kobject *kobj, struct kobj_attribute *attr, char *buf, size_t count)
+static ssize_t load_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
 {
     int i;
     load_bio_flag = 1;
@@ -211,32 +213,32 @@ static ssize_t bitmap_show(struct kobject *kobj, struct kobj_attribute *attr, ch
 {
     
 #if BITMAP_SHOW_REF_LEVEL == 1
-    printk("lev1. bcc_bitmap: 0x%lu\n", *bcc_bitmap);
+    printk("lev1. bcc_bitmap: 0x%lu\n", *(bcc_bitmap.bitmap));
 
 #elif BITMAP_SHOW_REF_LEVEL == 2
     int nr_bitmap = sizeof(bcc_bitmap) / sizeof(bcc_bitmap[0]);
 
-    printk("lev2. bcc_bitmap[%d]: 0x", nr_bitmap);
+    printk("lev2. bcc_bitmap.bitmap[%d]: 0x", nr_bitmap);
 
     int i = 0;
     for (i = nr_bitmap - 1; nr_bitmap >= 0; nr_bitmap--)
-        printk("%x", bcc_bitmap[i]);
+        printk("%x", bcc_bitmap.bitmap[i]);
     printk("\n");
 #endif
     
     return 0;
 }
 
-static ssize_t bitmap_store(struct kobject *kobj, struct kobj_attribute *attr, char *buf, size_t count)
+static ssize_t bitmap_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
 {
     /* extern void bitmap_set(unsigned long *map, unsigned int start, int len); */
     int i = 0, pos = 0, size = 0;
     sscanf(buf, "%d %d %d", &i,  &pos, &size);
 
-#if BITMAP_SHOW_REF_LEVEL == 2
-    bitmap_set(bcc_bitmap, pos, size);
+#if BITMAP_SHOW_REF_LEVEL == 1
+    bitmap_set(bcc_bitmap.bitmap, pos, size);
 #else
-    bitmap_set(&(bcc_bitmap[i]), pos, size);
+    bitmap_set(&(bcc_bitmap.bitmap[i]), pos, size);
 #endif
 
     return 0;
@@ -245,10 +247,34 @@ static ssize_t bitmap_store(struct kobject *kobj, struct kobj_attribute *attr, c
 #define BITMAP_GRANUL_SECT_NR 8
 static int bitmap_init(void)
 {
-    // struct block_device* device = blkdev_get_by_path("/dev/sdc5", FMODE_READ | FMODE_WRITE, NULL);
+    struct block_device* device = blkdev_get_by_path("/dev/sdc5", FMODE_READ | FMODE_WRITE, NULL);
     // unsigned long start = device->bd_part->start_sect;
-    // unsigned long nr_sects = device->bd_part->nr_sects;
+    unsigned long nr_sects = device->bd_part->nr_sects;
     // unsigned long size = nr_sects / BITMAP_GRANUL_SECT_NR;
+    unsigned long size = 120;
+
+    unsigned long bitmap_size = BITS_TO_LONGS(size);
+    printk("bcc_bitmap: allocator bitmap size is 0x%x bytes\n", bitmap_size);
+
+    bcc_bitmap.bitmap_from_slab = slab_is_available();
+    if (bcc_bitmap.bitmap_from_slab)
+        // bcc_bitmap.bitmap = kzalloc(bitmap_size, GFP_KERNEL);
+        bcc_bitmap.bitmap = kzalloc(BITS_TO_LONGS(size), GFP_KERNEL);
+    else {
+        bcc_bitmap.bitmap = memblock_virt_alloc(bitmap_size, 0);
+        /* the bitmap won't be freed from memblock allocator */
+        kmemleak_not_leak(bcc_bitmap.bitmap);
+    }
+
+    if (!bcc_bitmap.bitmap) {
+        printk("bcc_bitmap: ENOMEM allocating allocator bitmap!\n");
+        return -ENOMEM;
+    }
+
+    /* We zalloc'ed the bitmap, so all irqs are free by default */
+    spin_lock_init(&bcc_bitmap.lock);
+    // bcc_bitmap.of_node = of_node_get(of_node);
+    // bcc_bitmap.irq_count = irq_count;
 
     return 0;
 }
@@ -303,8 +329,8 @@ static int __init bcc_driver_init(void)
     return 0;
 
 r_sysfs:
-    kobject_put(kobj_ref);
 #ifdef CONFIG_BLOCK_CACHE_CONTROL
+    kobject_put(kobj_ref);
     sysfs_remove_file(kernel_kobj, &bcc_insert_attr.attr);
     sysfs_remove_file(kernel_kobj, &bcc_free_attr.attr);
     sysfs_remove_file(kernel_kobj, &bcc_load_attr.attr);
