@@ -59,7 +59,7 @@ static struct file_operations fops =
 static ssize_t make_bitmap_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
     char tbuf[4096] = "hello world!\n";
-    struct block_device* device = blkdev_get_by_path("/dev/sdc1", FMODE_READ | FMODE_WRITE, NULL);
+    struct block_device* device = blkdev_get_by_path("/dev/sdc2", FMODE_READ | FMODE_WRITE, NULL);
     unsigned long start = device->bd_part->start_sect;
     unsigned long nr_sects = device->bd_part->nr_sects;
     test_data=get_zeroed_page(GFP_KERNEL);
@@ -187,7 +187,7 @@ int load_bio(unsigned long target_sector,int target_size, void* data)
 
     // make custom bio
     bio_init(&bio);
-    bio.bi_bdev = blkdev_get_by_path("/dev/sdc1", FMODE_READ | FMODE_WRITE, NULL);
+    bio.bi_bdev = blkdev_get_by_path("/dev/sdc2", FMODE_READ | FMODE_WRITE, NULL);
     if(IS_ERR(bio.bi_bdev))
         printk(KERN_INFO"error: %l\n", PTR_ERR(bio.bi_bdev));
     else
