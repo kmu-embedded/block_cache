@@ -1784,6 +1784,7 @@ void blk_dump_cmd(char *buf, struct request *rq)
 		}
 	}
 }
+EXPORT_SYMBOL(blk_dump_cmd);
 
 void blk_fill_rwbs(char *rwbs, u32 rw, int bytes)
 {

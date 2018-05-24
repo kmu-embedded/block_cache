@@ -668,11 +668,13 @@ int blk_queue_enter(struct request_queue *q, gfp_t gfp)
 			return ret;
 	}
 }
+EXPORT_SYMBOL(blk_queue_enter);
 
 void blk_queue_exit(struct request_queue *q)
 {
 	percpu_ref_put(&q->q_usage_counter);
 }
+EXPORT_SYMBOL(blk_queue_exit);
 
 static void blk_queue_usage_counter_release(struct percpu_ref *ref)
 {
@@ -1994,6 +1996,7 @@ end_io:
 	bio_endio(bio);
 	return false;
 }
+EXPORT_SYMBOL(generic_make_request_checks);
 
 /**
  * generic_make_request - hand a buffer to its device driver for I/O
