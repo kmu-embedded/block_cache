@@ -35,7 +35,9 @@ extern struct kmem_cache *blk_requestq_cachep;
 extern struct kmem_cache *request_cachep;
 extern struct kobj_type blk_queue_ktype;
 extern struct ida blk_queue_ida;
-
+void blk_queue_exit(struct request_queue *q);
+int blk_queue_enter(struct request_queue *q, gfp_t gfp);
+noinline_for_stack bool generic_make_request_checks(struct bio *bio);
 static inline struct blk_flush_queue *blk_get_flush_queue(
 		struct request_queue *q, struct blk_mq_ctx *ctx)
 {
